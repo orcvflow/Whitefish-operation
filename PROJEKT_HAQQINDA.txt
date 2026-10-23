@@ -1,0 +1,306 @@
+================================================================================
+                     TRADING MVP - PROJEKT HAQQINDA TAFSILATLI BILDIRIŞ
+================================================================================
+
+Tarix: 23.10.2026
+Versiya: 0.1.0
+Yer: /home/main/Desktop/project.invest-az/
+
+================================================================================
+1. PROJEKTIN MECSUDU
+================================================================================
+
+Bu projet XAUUSD (qezme), EURUSD (evro/dollar), GBPUSD (funt/dollar) ve WTI
+(neft) emeliyyatlar ucun Python dili ile yasatilmis, yengil, asagi gecikmeli ve
+riyazi usuluyla yoxlanila bilen fundamental-texniki tisaret qarar sistemi
+yaradmaqla baglidir.
+
+Sistem real broker-e buyurtma gondermez. Yalnız analiz, tisaret plani,
+simulyasiya ve audit aparir.
+
+Əsas meselen:
+- Xebrləri iktisadi sebəb-nəticə əlaqələri ilə təhlil etmək
+- Real-time qiymət axınını qorumaq
+- Deterministik texniki strategiya icra etmək
+- Hər qərarı sonra yenidən qurmaq (audit)
+
+================================================================================
+2. ARXITEKTURA
+================================================================================
+
+Sistem "modulyar monolit" principio ile qurulmusdur. Yani eyni bir Python
+paketi icinde ferqli modullar var, lakin mikroservis, mesaj ochagini və ya
+aqir infrastuktur yox.
+
+Əsas axin:
+
+Market/Xebr Yemekleri → Dayamí Ingestion → Kanonik Məlumat → Fundamental +
+Texniki Təhlil → Risk Qapıları → Qarar → Audit
+
+Komponentlər:
+
+a) Ingestion (Girme)
+   - biquote SignalR WebSocket - real-time qiymət axını
+   - biquote REST API - tarixچه, simvollar, xəbər, iktisadi takvim
+   - fin-data MCP - 83 alət, 15 provayder (hisə, valyuta, kripto, SEC, kongre)
+   - searxng MCP - veb axtarış və URL oxuma
+   - OHLC qurucusu - tiklərdən yerli şam (M1, M5, M15, H1, H4, D1)
+
+b) Pipeline (Bor)
+   - Raw Journal (append-only) - xam hadisələrin yazılması
+   - Validasiya - invariantlerin yoxlanılması
+   - Kanonik Store (SQLite WAL) - təmizlənmiş məlumatın saxlama
+
+c) Fundamental Mühürki
+   - Yapay zeka: inclusionAI/Ling-3.0-flash (OpenRouter vasitəsilə)
+   - Xəbər və takvim snapshot hazırlığı
+   - Səbəb-nəticə zinciri qurulması
+   - Hər aktiv üçün ayrı təsir qiymətləndirilməsi
+
+d) Texniki Mühürki (Deterministik Python)
+   - H1 bazar strukturı (güclü/zəif yüksek/düşük, eyni seviyyələr, trendu)
+   - M15 RSI(14) - Wilder yumuşatma usulu
+   - Şam patternləri (3-1, 1-1, 1-3, 3-3)
+   - Giriş, dayanma (SL), çatdırma (TP1, TP2) hésablamaları
+   - Risk/ödül (RR) nisbəti
+
+e) Risk Mühürki
+   - Qatı qapılar (AI onarla.equal olmaz)
+   - spread, data quality, market saatləri, xəbər karantinası
+   - minimum RR, gündəlik zərar limiti, maksimum iş sayısı
+
+f) Qarar Mühürki
+   - OPEN (təsdiqləndi), WAIT (gözləyiş), SKIP (red olundu)
+
+g) Audit (Yaddaş)
+   - Hər qərarın inputları, hesablamaları, AI cavabları, nəticələri saxlama
+
+h) Axle-Axiom
+   - Lean 4 ilə riyazi yoxlamalar (OHLC invariantları, RSI, RR, posición ölçüsü)
+
+i) API
+   - Minimal REST: /health, /metrics, /market/{symbol}, /candles/{symbol},
+     /news, /calendar, /analysis/{symbol}, /decisions, /decisions/{id}
+
+================================================================================
+3. İŞLEME PRİNSİPLƏRİ
+================================================================================
+
+a) Hər komponent düşünülmüşdür ki başkasının xətası sessizcə digərində
+   məlumat körünməsinə səbəb olmasın.
+
+b) Hər tik analizdən əvvəl dayamí yaddaşa yazılır (WAL jurnal + SQLite).
+
+c) Dublikat aşkın olunur (event_id + provayder simvolu + vaxt).
+
+d) Boşluq (gap) aşkar olunarsa o interval tam hesablanmaz.
+
+e) AI indi buyurtma vermir, yalnız təhlil edir. Hesablamalar (RSI, ATR,
+   SL, TP, position ölçüsü) deterministik Python ilə edilir.
+
+f) Qiymətlər float ilə, decimal ilə hesablanır ki riyazi xəta yox olsun.
+
+g) Zaman damgaları (timestamps) audit məlumatından silinməz.
+
+h) AI cavabında faktor, höhəmət, aksi sübutlar və ?
+qeyd edilməlidir. AI gələcək qiymət istehsalı fact kimi təqdim etmez.
+
+i) Qarar Yevlət: OPEN, WAIT, SKIP. OPEN broker buyurdu deyil,
+   təyin edilən planıdır.
+
+================================================================================
+4. API KEYLƏR VƏ KONFİQURASIYA
+================================================================================
+
+a) AXLE_API_KEY
+   - Məcqene: axiom-axle (Lean 4 riyazi yoxlama)
+   - Nöt: your_axle_api_key_here (in .env dosyasında saxlayın)
+   - İstifadə: OHLC invariantları, RSI formulu, risk/ödül hesablamasının
+     riyazi yoxlanması üçün
+
+b) OPENROUTER_API_KEY
+   - Məcqene: inclusionAI/Ling-3.0-flash fundamental xəbər təhlili
+   - Nöt: your_openrouter_api_key_here (in .env dosyasında saxlayın)
+   - İstifadə: xəbər və iktisadi hadisələrin faktorlayılması
+   - Status: 402 Payment Required (kredit lazımdır), sistem ona uyğun
+     falling-back (yedək tesis) ilə davam edir
+
+c) config.yaml
+   - Bütün sistem parametrləri buradadır (instruments, risk, technical,
+     ai, blackout, quality, persistence, logging, monitoring, api, axle)
+
+d) .env.example
+   - Əsas environment dəyişənlərinin şablonu
+
+e) opencode.json
+   - OpenCode MCP server konfiqurasiyası (fin-data, searxng)
+
+================================================================================
+5. KONFİQURASIYA PARAMETRLƏRİ (config.yaml)
+================================================================================
+
+İnstruments: XAUUSD, EURUSD, GBPUSD, WTI
+
+Risk:
+- default_risk_pct: 0.01 (1%)
+- max_trade_risk_pct: 0.02 (2%)
+- daily_loss_limit_pct: 0.03 (3%)
+- max_trades_per_day: 3
+- min_risk_reward: 2.0 (1:2 minimum)
+- entry_buffer_points: 30
+- sl_buffer_points: 10
+
+Technical:
+- h1_timeframe: 1h
+- m15_timeframe: 15m
+- rsi_period: 14
+- rsi_overbought: 70
+- rsi_oversold: 30
+- swing_lookback: 5
+
+AI:
+- provider: openrouter
+- model: inclusionai/ling-3.0-flash
+- temperature: 1.0
+- top_p: 0.95
+- top_k: 20
+- max_tokens: 8192
+- timeout_seconds: 30
+
+Blackout:
+- minutes_before: 30
+- minutes_after: 30
+- high_impact_only: true
+- currencies: USD, EUR, GBP
+
+Quality:
+- max_quote_age_seconds: 300 (5 dəqiqə)
+- max_ohlc_gap_minutes: 120 (2 saat)
+
+Persistence:
+- db_path: ./data/trading.db
+- journal_path: ./data/journal.log
+- wal_mode: true
+- sync_on_write: true
+
+================================================================================
+6. YAZILDIRILAR (FILES)
+================================================================================
+
+Kaynak kod (24 fayl):
+- src/trading/__init__.py
+- src/trading/main.py
+- src/trading/canonical/__init__.py, enums.py, types.py, models.py, validation.py
+- src/trading/config/__init__.py
+- src/trading/persistence/__init__.py, journal.py, store.py
+- src/trading/ingestion/__init__.py, biquote_rest.py, biquote_ws.py, mcp_adapter.py
+- src/trading/fundamental/__init__.py, ai_adapter.py, snapshot.py, engine.py
+- src/trading/technical/__init__.py, indicators.py, structure.py, patterns.py, levels.py, engine.py
+- src/trading/risk/__init__.py, engine.py
+- src/trading/decision/__init__.py, engine.py
+- src/trading/axle/__init__.py, verifier.py
+- src/trading/audit/__init__.py, logger.py
+- src/trading/api/__init__.py, server.py
+
+Konfiqurasiya (4 fayl):
+- pyproject.toml (bağımlılıqlar, pytest, ruff, mypy)
+- config.yaml (sistem parametrləri)
+- .env.example (əhal variable şablonu)
+- opencode.json.backup (OpenCode MCP konfiqurasiyası yedeği)
+
+Dokumentasiya (4 fayl):
+- AGENTS.md (kod yazma, yoxlama, təhlükəsizlik qaidaları)
+- PLAN.md (icra plantı, mərhələr, risklər, qəbul məyarları)
+- RUNBOOK.md (dərəcəli işlətmə,backup, geri qaydırma, sorğulama)
+- PROJEKT_HAQQINDA.txt (bu fayl)
+
+Obsidian Vault:
+- /home/main/obsidian-vault/Project Progress.md (process izləmə)
+
+================================================================================
+6. TEST NƏTCƏYLƏRİ
+================================================================================
+
+Canonical Layırı:
+✅ Instrument enum: XAUUSD, EURUSD, GBPUSD, WTI
+✅ OHLC invariantları: H >= max(O,C), L <= min(O,C), H >= L
+✅ Invariant xətasının aşkın olunması
+✅ Tick validasiyası (spread, market vəziyyəti, birikmə)
+✅ Keyfiyyət sinifləmə
+
+Texniki Layırı:
+✅ RSI(14) Wilder yumuşatma usulu ilə
+✅ ATR (Orta Gerçek Aralık)
+✅ H1 bazar strukturu (schwinq tapma, zonalar, trendu)
+✅ Şam patternləri (3-1, 1-1, 1-3, 3-3)
+✅ Giriş/SL/TP hesablamaları
+✅ Risk/ödül nisbəti
+✅ Pozição ölçüsü
+
+Dürüstlük Layırı:
+✅ SQLite WAL store (ticks, OHLC, xəbər, takvim, qararlar, tezlər)
+✅ Append-only jurnal (SHA256 hash hər qətərdə)
+✅ Dublikat aşkın olunması
+✅ Geri oynama (replay)
+✅ Bütövlük yoxlaması (integrity check)
+✅ Yedəkləmə və geri qaydırma
+
+Risk və Qarar Layırı:
+✅ Risk mühürki (spread, data quality, market saatləri, blackout, RR, gündəlik limitlər, sındırılmış data)
+✅ Qarar mühürki (OPEN/WAIT/SKIP)
+✅ Qatı qapılar AIOn yazila bilmez
+
+AI enteqrasiyası:
+✅ OpenRouter API əlaqəsi yaradıldı (200 status ilk sorğu)
+✅ Model: inclusionai/ling-3.0-flash
+✅ Reasoning tokenlər (61 token ilk cavabda)
+✅ AI unavailable olduqda sessiz cedvel yox, fallback tesis işləyir
+
+================================================================================
+7. ÇALIŞMA PRİNSİPLƏRİ
+================================================================================
+
+1. Hər tik əvvəl jurnal-a yazılır, sonra emal edilir.
+2. Hər qərarın audit yolu yadda saxlanılır.
+3. AI buyurtma vermir, yalnız təhlil və tövsiyə verir.
+4. Qapılar (gates) dəqiq və qatidir, onlardan usada gedilmez.
+5. Məlumat artırıla bilər, silinməz (yeni versiya əlavə edilir).
+6. Ziynət (synthetic) data real nəticə kimi təqdim edilməz.
+7. Backtest look-ahead biasdanazurdurulur.
+8. Təsadüfi niyyət yoxdur, bütün algorithm deterministicdir.
+
+================================================================================
+8. QALANACAGI ISHLER
+================================================================================
+
+1. Unit testlər yazılmalıdır (pytest)
+2. Xüsusi testlər yazılmalıdır (Hypothesis)
+3. Integration testlər (provider adapterləri, SQLite WAL, jurnal replay)
+4. Backtest framework (look-ahead bias olmadan)
+5. Latency ölçülməsi (provider-to-receive, receive-to-persist, processing, AI, karar)
+6. Recovery testi (proses cinayəti və ya diskin xətası zamanı)
+
+================================================================================
+9. XƏTA DÜZƏLTMƏ VƏ HƏSSASLİK
+================================================================================
+
+- API açarları kodda və loglarda saxlanılmır.
+- API.authentication yoxdur (internal tool).
+- Real broker buyurdu göndərmək qaralidir.
+- Bütün istisnalar kontekstlə log olunur.
+- Fail-closed davranış: persistence xətası olduqda yeni qarar bloke edilir.
+
+================================================================================
+SON
+================================================================================
+
+Bu projet xarici brokerə əlaqə quraşdırmaqla işləmir. Yalnız analitik
+qarar verən, riyazi yoxlama aparən və hər qərarın sonradan yenidən qurulup
+bilə bilən sistem yaradmışdır.
+
+Mühürki princip: AI bazar haqqında izah yaradır, Python qaydaları icra edir,
+Axle-Axiom uyğun riyazi iddiaları yoxlayır, testlər kodun davranışını təsdiqləyir,
+audit isə qərarın niyə verildiyini sonradan yenidən qurmağa imkan verir.
+
+Bunlardan heç biri gəlirlik zəmanəti deyil.
+================================================================================

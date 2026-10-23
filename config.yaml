@@ -1,0 +1,129 @@
+# Trading MVP Configuration
+
+# Instruments to trade
+instruments:
+  - "XAUUSD"
+  - "EURUSD"
+  - "GBPUSD"
+  - "WTI"
+
+# Instrument precision (decimal places)
+instrument_precision:
+  "XAUUSD": 2
+  "EURUSD": 5
+  "GBPUSD": 5
+  "WTI": 2
+
+# Instrument point values (for entry buffer calculation)
+instrument_point_value:
+  "XAUUSD": 0.01
+  "EURUSD": 0.00001
+  "GBPUSD": 0.00001
+  "WTI": 0.01
+
+# Risk configuration
+risk:
+  default_risk_pct: 0.01           # 1% default risk per trade
+  max_trade_risk_pct: 0.02         # 2% max risk per trade
+  daily_loss_limit_pct: 0.03       # 3% daily loss limit
+  max_trades_per_day: 3            # Max 3 trades per day
+  min_risk_reward: 2.0             # Minimum 1:2 risk/reward
+  max_spread_pct:
+    "XAUUSD": 0.0005
+    "EURUSD": 0.0002
+    "GBPUSD": 0.0003
+    "WTI": 0.0010
+
+# Technical analysis configuration
+technical:
+  h1_timeframe: "1h"
+  m15_timeframe: "15m"
+  rsi_period: 14
+  rsi_overbought: 70
+  rsi_oversold: 30
+  entry_buffer_points: 30
+  sl_buffer_points: 10
+  swing_lookback: 5
+  equal_level_tolerance_atr_mult: 0.5
+
+# Timeframes
+timeframes:
+  - "1m"
+  - "5m"
+  - "15m"
+  - "30m"
+  - "1h"
+  - "4h"
+  - "1d"
+
+# AI configuration
+ai:
+  provider: "openrouter"
+  model: "inclusionAI/Ling-3.0-flash-Fin"
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 20
+  max_tokens: 8192
+  timeout_seconds: 30
+  max_retries: 2
+
+# News blackout configuration
+blackout:
+  minutes_before: 30
+  minutes_after: 30
+  high_impact_only: true
+  currencies:
+    - "USD"
+    - "EUR"
+    - "GBP"
+  # Additional symbols for specific instruments
+  instrument_events:
+    "XAUUSD": ["gold", "xau", "bullion", "precious metals"]
+    "WTI": ["crude", "oil", "wti", "brent", "inventory", "opec", "eia"]
+
+# Data quality thresholds
+quality:
+  max_quote_age_seconds: 300          # 5 minutes max quote age
+  max_ohlc_gap_minutes: 120           # 2 hours max OHLC gap
+  min_tick_volume: 1
+  stale_data_action: "skip"           # skip | warn | block
+
+# Persistence
+persistence:
+  db_path: "./data/trading.db"
+  journal_path: "./data/journal.log"
+  journal_max_size_mb: 100
+  journal_rotation: "daily"
+  backup_interval_hours: 6
+  backup_retention_days: 30
+  wal_mode: true
+  sync_on_write: true
+
+# Logging
+logging:
+  level: "INFO"
+  format: "json"
+  file: "./data/trading.log"
+  max_file_size_mb: 50
+  backup_count: 10
+
+# Monitoring
+monitoring:
+  enabled: true
+  port: 9090
+  path: "/metrics"
+
+# API
+api:
+  host: "127.0.0.1"
+  port: 8080
+  rate_limit: 100  # requests per minute
+
+# AXLE verification
+axle:
+  enabled: true
+  verify_ohlc: true
+  verify_rsi: true
+  verify_rr: true
+  verify_sizing: true
+  timeout_seconds: 10

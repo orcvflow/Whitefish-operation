@@ -1,0 +1,4 @@
+[mcp]
+default_tool_categories = ["all"]
+enable_tool_discovery = true
+transport = "stdio"

@@ -1,0 +1,77 @@
+# Secrets - NEVER commit these
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+*.crt
+API_KEY*
+SECRET*
+
+# GrayMatter memory
+.graymatter/
+
+# Obsidian vault (separate repo)
+.obsidian/
+obsidian-vault/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+venv*/
+.venv/
+env/
+venv/
+ENV/
+env.venv/
+.axle-venv/
+
+# Virtual environments
+axle-venv/
+
+# Data and journals
+data/
+journal.log
+*.db
+*.sqlite
+*.sqlite3
+*.jsonl
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Build
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Ruff/mypy
+.ruff_cache/
+.mypy_cache/
+
+# Jupyter
+.ipynb_checkpoints
